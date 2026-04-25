@@ -1,0 +1,205 @@
+Use two kinds of loss measurement:
+
+Compression size loss/gain
+Signal quality loss
+
+“Lost data ratio” can mean either one, so be precise.
+
+1) Size reduction
+
+Compare original RAW chunk size vs compressed .stream size.
+
+Formula:
+
+compression_ratio = raw_size / stream_size
+size_reduction_pct = (1 - stream_size / raw_size) * 100
+
+Example:
+
+raw = 51,840,000 bytes
+stream = 8,000,000 bytes
+
+Then:
+
+compression ratio = 6.48:1
+size reduction = 84.57%
+2) Information loss
+
+For the actual numeric loss, compare:
+
+original raw chunk
+decompressed raw chunk
+
+Common metrics:
+
+MAE: mean absolute error
+MSE: mean squared error
+RMSE: root mean squared error
+Max absolute error: very important for SPERR
+PSNR: common reconstruction-quality metric
+
+Formulas:
+
+error = original - reconstructed
+MAE  = mean(|error|)
+MSE  = mean(error^2)
+RMSE = sqrt(MSE)
+MaxAE = max(|error|)
+PSNR = 20 * log10(data_max / RMSE)
+
+For SPERR specifically, also check:
+
+MaxAE <= PWE tolerance
+
+That is the main promise of the compressor.
+
+3) Compare final video too
+
+If you convert decompressed RAW back to MP4 and compare to the original MP4, there are two losses mixed together:
+
+SPERR loss
+video encoding loss from FFmpeg/H.264
+
+So if your goal is to measure SPERR, compare RAW vs decompressed RAW.
+
+If your goal is to measure the whole pipeline, compare:
+
+original video frames
+reconstructed video frames
+
+That is valid too, but it includes both compression systems.
+
+Best practice
+
+Measure both:
+
+RAW vs decompressed RAW → SPERR-only loss
+original video vs final MP4 → end-to-end pipeline loss
+Practical script
+
+Here is a Python script that compares one original chunk and one decompressed chunk.
+
+import numpy as np
+import os
+from math import log10, sqrt
+
+orig_path = r"C:\dev\SPERR\python_files\video_small_100.raw"
+decomp_path = r"C:\dev\SPERR\python_files\video_small_100.decomp.raw"
+stream_path = r"C:\dev\SPERR\python_files\video_small_100.stream"
+
+shape = (100, 270, 480)
+dtype = np.float32
+
+orig = np.fromfile(orig_path, dtype=dtype).reshape(shape)
+decomp = np.fromfile(decomp_path, dtype=dtype).reshape(shape)
+
+err = orig - decomp
+abs_err = np.abs(err)
+
+mae = abs_err.mean()
+mse = np.mean(err ** 2)
+rmse = sqrt(mse)
+maxae = abs_err.max()
+
+data_min = float(orig.min())
+data_max = float(orig.max())
+data_range = data_max - data_min
+
+psnr = float("inf") if rmse == 0 else 20 * log10(data_range / rmse)
+
+raw_size = os.path.getsize(orig_path)
+stream_size = os.path.getsize(stream_path)
+
+compression_ratio = raw_size / stream_size
+size_reduction_pct = (1 - stream_size / raw_size) * 100
+
+print(f"Original RAW size      : {raw_size} bytes")
+print(f"Compressed stream size : {stream_size} bytes")
+print(f"Compression ratio      : {compression_ratio:.4f}:1")
+print(f"Size reduction         : {size_reduction_pct:.2f}%")
+print()
+print(f"MAE                    : {mae:.8f}")
+print(f"MSE                    : {mse:.8f}")
+print(f"RMSE                   : {rmse:.8f}")
+print(f"Max absolute error     : {maxae:.8f}")
+print(f"Data range             : {data_range:.8f}")
+print(f"PSNR                   : {psnr:.4f} dB")
+If you want end-to-end video comparison
+
+Use OpenCV to read:
+
+original MP4
+reconstructed MP4
+
+Then compare frame by frame.
+
+Example:
+
+import cv2
+import numpy as np
+from math import log10, sqrt
+
+orig_video = r"C:\dev\SPERR\python_files\cats_play.mp4"
+recon_video = r"C:\dev\SPERR\python_files\output.mp4"
+
+cap1 = cv2.VideoCapture(orig_video)
+cap2 = cv2.VideoCapture(recon_video)
+
+mae_list, mse_list, maxae_list = [], [], []
+
+while True:
+    r1, f1 = cap1.read()
+    r2, f2 = cap2.read()
+
+    if not r1 or not r2:
+        break
+
+    g1 = cv2.cvtColor(f1, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    g2 = cv2.cvtColor(f2, cv2.COLOR_BGR2GRAY).astype(np.float32)
+
+    # Resize if needed to match
+    if g1.shape != g2.shape:
+        g2 = cv2.resize(g2, (g1.shape[1], g1.shape[0]), interpolation=cv2.INTER_AREA)
+
+    err = g1 - g2
+    abs_err = np.abs(err)
+
+    mae_list.append(abs_err.mean())
+    mse_list.append(np.mean(err ** 2))
+    maxae_list.append(abs_err.max())
+
+cap1.release()
+cap2.release()
+
+mae = np.mean(mae_list)
+mse = np.mean(mse_list)
+rmse = sqrt(mse)
+maxae = np.max(maxae_list)
+psnr = float("inf") if rmse == 0 else 20 * log10(255.0 / rmse)
+
+print(f"Video MAE         : {mae:.6f}")
+print(f"Video MSE         : {mse:.6f}")
+print(f"Video RMSE        : {rmse:.6f}")
+print(f"Video MaxAE       : {maxae:.6f}")
+print(f"Video PSNR        : {psnr:.4f} dB")
+Important warning
+
+If you normalized the decompressed RAW differently before making MP4, then the video comparison can look unfair. For a fair comparison:
+
+use the same normalization rule
+ideally based on the original raw min/max
+Best metric set for your project
+
+I’d report these:
+
+Compression ratio
+Size reduction %
+MAE
+RMSE
+Max absolute error
+PSNR
+
+That gives both:
+
+storage benefit
+reconstruction damage

@@ -1,0 +1,131 @@
+Create test data file:
+$nx=64; $ny=64; $nz=64
+$n = $nx*$ny*$nz
+$bytes = New-Object byte[] ($n*4)
+
+for($k=0;$k -lt $nz;$k++){
+  for($j=0;$j -lt $ny;$j++){
+    for($i=0;$i -lt $nx;$i++){
+      $idx = ($k*$ny*$nx + $j*$nx + $i)
+      $v = [single]([math]::Sin($i/7.0)+[math]::Cos($j/9.0)+$k/50.0)
+      $b = [System.BitConverter]::GetBytes($v)
+      $off = $idx*4
+      $bytes[$off+0]=$b[0]; $bytes[$off+1]=$b[1]; $bytes[$off+2]=$b[2]; $bytes[$off+3]=$b[3]
+    }
+  }
+}
+
+
+$in = Join-Path $env:TEMP "vol_f32_64cubed.raw"
+[System.IO.File]::WriteAllBytes($in, $bytes)
+dir $in
+
+
+To compress a file:
+$in     = Join-Path $env:TEMP "vol_f32_64cubed.raw"
+$stream = Join-Path $env:TEMP "vol_64cubed.stream"
+$out    = Join-Path $env:TEMP "vol_64cubed.decomp.raw"
+
+cd C:\dev\SPERR\build_vs2022\bin\Release
+.\sperr3d.exe -c --ftype 32 --dims 64 64 64 --pwe 1e-4 --bitstream $stream $in
+echo $LASTEXITCODE
+dir $stream
+
+
+To decompress a file:
+.\sperr3d.exe -d --decomp_f $out $stream
+echo $LASTEXITCODE
+dir $out
+
+
+To verify max error:
+python -c "import os, numpy as np; tmp=os.environ['TEMP']; a=np.fromfile(os.path.join(tmp,'vol_f32_64cubed.raw'),dtype=np.float32); b=np.fromfile(os.path.join(tmp,'vol_64cubed.decomp.raw'),dtype=np.float32); print('orig len:', a.size); print('decomp len:', b.size); print('max_abs_error:', np.max(np.abs(a-b)))"
+
+
+For video compression:
+$in     = "C:\dev\SPERR\python_files\video_small.raw"
+$stream = "C:\dev\SPERR\python_files\video_small.stream"
+$out    = "C:\dev\SPERR\python_files\video_small.decomp.raw"
+
+cd C:\dev\SPERR\build_vs2022\bin\Release
+.\sperr3d.exe -c --ftype 32 --dims 7000 270 480 --pwe 1e-4 --bitstream $stream $in
+echo $LASTEXITCODE
+dir $stream
+
+
+For video compression that is small enough for this laptop buffer 100 frame chunk:
+$in     = "C:\dev\SPERR\python_files\video_small_100.raw"
+$stream = "C:\dev\SPERR\python_files\video_small_100.stream"
+$out    = "C:\dev\SPERR\python_files\video_small_100.decomp.raw"
+
+cd C:\dev\SPERR\build_vs2022\bin\Release
+.\sperr3d.exe -c --ftype 32 --dims 100 270 480 --pwe 1e-4 --bitstream $stream $in
+echo $LASTEXITCODE
+dir $stream
+
+
+For video compression 100 frame chunk:
+$stream = "C:\dev\SPERR\python_files\video_small_100.stream"
+$out    = "C:\dev\SPERR\python_files\video_small_100.decomp.raw"
+
+cd C:\dev\SPERR\build_vs2022\bin\Release
+.\sperr3d.exe -d --decomp_f $out $stream
+echo $LASTEXITCODE
+dir $out
+
+
+If that works, verify it against the original chunk:
+python -c "import numpy as np; a=np.fromfile(r'C:\dev\SPERR\python_files\video_small_100.raw',dtype=np.float32); b=np.fromfile(r'C:\dev\SPERR\python_files\video_small_100.decomp.raw',dtype=np.float32); print('orig len:', a.size); print('decomp len:', b.size); print('max_abs_error:', np.max(np.abs(a-b)))"
+
+
+If you want to turn the decompressed chunk back into viewable frames:
+ffmpeg -f rawvideo -pixel_format gray -video_size 480x270 -framerate 30 `
+-i "C:\dev\SPERR\python_files\video_small_100.decomp.raw" `
+-vf "normalize" "C:\dev\SPERR\python_files\output.mp4"
+
+
+If you want to turn the decompressed chunk back into viewable frames with python:
+python -c "import numpy as np; a=np.fromfile(r'C:\dev\SPERR\python_files\video_small_100.decomp.raw',dtype=np.float32).reshape(100,270,480); amin=a.min(); amax=a.max(); b=((a-amin)/(amax-amin)*255).clip(0,255).astype(np.uint8); b.tofile(r'C:\dev\SPERR\python_files\video_small_100_uint8.raw'); print('min,max=', amin, amax); print('shape=', b.shape)"
+
+ffmpeg -f rawvideo -pixel_format gray -video_size 480x270 -framerate 30 `
+-i "C:\dev\SPERR\python_files\video_small_100_uint8.raw" `
+"C:\dev\SPERR\python_files\output_fixed.mp4"
+
+
+If you want to turn the compressed chunk back into viewable frames with python:
+python -c "import numpy as np; a=np.fromfile(r'C:\dev\SPERR\python_files\video_small_100.raw',dtype=np.float32).reshape(100,270,480); amin=a.min(); amax=a.max(); b=((a-amin)/(amax-amin)*255).clip(0,255).astype(np.uint8); b.tofile(r'C:\dev\SPERR\python_files\input_video.raw'); print('min,max=', amin, amax); print('shape=', b.shape)"
+
+ffmpeg -f rawvideo -pixel_format gray -video_size 480x270 -framerate 30 `
+-i "C:\dev\SPERR\python_files\input_video.raw" `
+"C:\dev\SPERR\python_files\input_show.mp4"
+
+
+
+Automatically handle the last chunk size too
+This version reads the file size and computes the frame count automatically.
+Since each value is float32, each voxel is 4 bytes.
+For a chunk shaped:
+
+cd C:\dev\SPERR\build_vs2022\bin\Release
+
+$chunkDir = "C:\dev\SPERR\python_files\chunks"
+$height = 270
+$width = 480
+$bytesPerValue = 4
+
+Get-ChildItem $chunkDir -Filter *.raw | ForEach-Object {
+    $in = $_.FullName
+    $stream = [System.IO.Path]::ChangeExtension($in, ".stream")
+
+    $frames = [int]($_.Length / ($height * $width * $bytesPerValue))
+
+    Write-Host "Compressing $in"
+    Write-Host "  dims = $frames $height $width"
+    Write-Host "  out  = $stream"
+
+    .\sperr3d.exe -c --ftype 32 --dims $frames $height $width --pwe 1e-4 --bitstream $stream $in
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Failed on $in with exit code $LASTEXITCODE"
+    }
+}
