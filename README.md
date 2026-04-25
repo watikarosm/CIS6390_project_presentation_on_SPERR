@@ -1,3 +1,32 @@
+## Introduction
+
+This version of SPERR was created to understand the original paper, which I left the README and most thing untouched.  The idea was that since I had to give 
+presentation in class it would be boring because anyone could read the paper and presented the summed up version of the paper.  Many people could read and 
+had an understanding of the matter than I could.  Besides, during WWII, Admiral William "Bull" Halsey Jr. once told Admiral Ramond A. Spruance before he 
+and his task force set sail to Midway Island, "When you command, command."  This to me, in this scenario, meant, "Be and expert in the topic that I need to 
+present.  Nonetheless, just like a good story telling, there must be a major life changing event happened to the main character.
+
+## Purpose
+Anyway, instead of scientific data like the original's purpose, this one takes a MPEG video converts it to floating point values by normalizing it from integer
+value (0-255) and RGB channels of the image, frame-by-frame to simulate scientifice data.  This was because working of a laptop and not a supercomputer, there 
+was not much room for memory storage.  Plus, getting the scientific data to do the job was a pain.  And, this way was more fun to do.  
+
+## Methodology
+The sequence of operation
+  - Read MP4 video
+  - Chop/slice them up to the size that my laptop can handle
+  - Normalize the value from integer to floating point
+  - Compress all the batches of the converted data (SPERR)
+  - Decompress the first slice (SPERR)
+  - Normalize the value from floating point to integer
+  - Convert the normalized value to MP4 (FFMPEG)
+  - Play the video
+  - Display the before and after apply SPERR
+
+## Conclusion
+This could be done because the original in which SPERR was based on, SPECK, was designed for video compression.  Download and try it for yourself.
+
+
 [![clang-format](https://github.com/NCAR/SPERR/actions/workflows/clang-format.yml/badge.svg)](https://github.com/NCAR/SPERR/actions/workflows/clang-format.yml)
 [![unit-test](https://github.com/NCAR/SPERR/actions/workflows/unit-test.yml/badge.svg)](https://github.com/NCAR/SPERR/actions/workflows/unit-test.yml)
 [![CodeQL](https://github.com/NCAR/SPERR/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/NCAR/SPERR/actions/workflows/codeql-analysis.yml)
