@@ -26,7 +26,10 @@ The sequence of operation
 ## Conclusion
 This could be done because the original in which SPERR was based on, SPECK, was designed for video compression.  Download and try it for yourself. 
 
-## 
+## Note
+If it does not work according to AI_README.md, Google AI mode or ChatGPT can help.  Don't aske me.  I would probably have forgotten by then.  :P
+
+##
 
 [![clang-format](https://github.com/NCAR/SPERR/actions/workflows/clang-format.yml/badge.svg)](https://github.com/NCAR/SPERR/actions/workflows/clang-format.yml)
 [![unit-test](https://github.com/NCAR/SPERR/actions/workflows/unit-test.yml/badge.svg)](https://github.com/NCAR/SPERR/actions/workflows/unit-test.yml)
